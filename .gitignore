@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+.cache/
+
+# Environment secrets
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# TypeScript
+*.tsbuildinfo
