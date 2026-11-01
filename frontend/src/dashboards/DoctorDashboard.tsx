@@ -21,6 +21,7 @@ import {
   CAREGIVER_PATIENTS_STORAGE_KEY,
   type CaregiverPatientItem,
 } from './CaregiverDashboard'
+import { BACKEND_BASE_URL } from '../services/api'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -59,12 +60,12 @@ function AIAssistantPanel() {
     setIsLoading(true)
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/ai/chat', {
+      const res = await fetch(`${BACKEND_BASE_URL}/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })),
-          model: 'gemini-3.8-flash',
+          model: 'gemini-flash-lite-latest',
           system_instruction:
             'You are an advanced Clinical Decision Support AI for licensed medical doctors. Be concise, precise, evidence-based, and highlight pertinent differential diagnoses and drug contraindications.',
         }),

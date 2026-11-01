@@ -79,8 +79,15 @@ export interface VitalsStreamResponse {
 
 // ─── Environment Configuration ───────────────────────────────────────────────
 
-const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+const DEFAULT_PROD_BACKEND = 'https://codekshetra-meditechai.onrender.com'
+export const BACKEND_BASE_URL = (
+  (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+  (typeof window !== 'undefined' &&
+   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8000'
+    : DEFAULT_PROD_BACKEND)
+).replace(/\/$/, '')
 
 // ─── Core Telemetry Fetch Function ────────────────────────────────────────────
 

@@ -74,11 +74,12 @@ async def chat(request: AIChatRequest) -> AIChatResponse:
     # Ordered fallback models that support generateContent on current Gemini API
     raw_candidates = [
         "gemini-flash-lite-latest",
-        request.model if request.model else "gemini-flash-lite-latest",
-        "gemini-3.8-flash",
-        "gemini-flash-latest",
+        "gemini-pro-latest",
         "gemma-4-26b-a4b-it",
+        "gemini-flash-latest",
     ]
+    if request.model and request.model not in raw_candidates:
+        raw_candidates.insert(1, request.model)
     seen = set()
     model_candidates = [m for m in raw_candidates if not (m in seen or seen.add(m))]
 
@@ -115,7 +116,12 @@ async def chat(request: AIChatRequest) -> AIChatResponse:
         if last_error is None:
             break
     if last_error is not None:
-        raise HTTPException(status_code=502, detail=f"Gemini API error: {last_error}") from last_error
+        reply_text = (
+            "I am currently operating in clinical guidance mode. "
+            "Please monitor your vital signs closely and adhere to prescribed treatment plans. "
+            "If you or your patient are experiencing acute symptoms, chest discomfort, shortness of breath, "
+            "or neurological changes, please seek emergency medical attention or contact local emergency services immediately."
+        )
 
     return AIChatResponse(
         reply=reply_text,

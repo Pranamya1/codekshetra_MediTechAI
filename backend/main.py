@@ -46,17 +46,9 @@ app = FastAPI(
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 
-ALLOWED_ORIGINS: list[str] = [
-    "http://localhost:5173",   # Vite dev server
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    os.getenv("FRONTEND_URL", ""),
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o for o in ALLOWED_ORIGINS if o] or ["*"],
+    allow_origin_regex=r".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,11 +56,17 @@ app.add_middleware(
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 
-app.include_router(ai.router,           prefix="/ai",           tags=["AI / Gemini"])
-app.include_router(patients.router,     prefix="/patients",     tags=["Patients"])
-app.include_router(vitals.router,       prefix="/vitals",       tags=["Vitals"])
-app.include_router(medications.router,  prefix="/medications",  tags=["Medications"])
-app.include_router(appointments.router, prefix="/appointments", tags=["Appointments"])
+# Mount both standard and /api prefixed routes for seamless reverse-proxy and direct access
+app.include_router(ai.router,           prefix="/ai",              tags=["AI / Gemini"])
+app.include_router(ai.router,           prefix="/api/ai",          tags=["AI / Gemini"])
+app.include_router(patients.router,     prefix="/patients",        tags=["Patients"])
+app.include_router(patients.router,     prefix="/api/patients",    tags=["Patients"])
+app.include_router(vitals.router,       prefix="/vitals",          tags=["Vitals"])
+app.include_router(vitals.router,       prefix="/api/vitals",      tags=["Vitals"])
+app.include_router(medications.router,  prefix="/medications",     tags=["Medications"])
+app.include_router(medications.router,  prefix="/api/medications", tags=["Medications"])
+app.include_router(appointments.router, prefix="/appointments",    tags=["Appointments"])
+app.include_router(appointments.router, prefix="/api/appointments",tags=["Appointments"])
 
 # ─── Health check ─────────────────────────────────────────────────────────────
 

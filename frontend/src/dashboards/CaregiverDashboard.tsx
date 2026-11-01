@@ -13,6 +13,7 @@ import {
 import { AlertSeverity, VitalTrend, type IUser } from '../types/medical'
 import { StatCard } from '../components/StatCard'
 import { AddPatientModal, type NewPatientData } from '../components/AddPatientModal'
+import { BACKEND_BASE_URL } from '../services/api'
 
 interface CaregiverDashboardProps {
   currentUser: IUser
@@ -147,7 +148,7 @@ export function CaregiverDashboard({ currentUser }: CaregiverDashboardProps) {
     savePatients(updated)
 
     // Optional background sync to backend /patients/ endpoint
-    fetch('/api/patients/', {
+    fetch(`${BACKEND_BASE_URL}/patients/`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

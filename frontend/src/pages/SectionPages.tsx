@@ -24,6 +24,7 @@ import {
   CAREGIVER_PATIENTS_STORAGE_KEY,
   type CaregiverPatientItem,
 } from '../dashboards/CaregiverDashboard'
+import { BACKEND_BASE_URL } from '../services/api'
 
 interface PageProps {
   currentUser: IUser
@@ -847,7 +848,7 @@ export function PatientsPage({ currentUser }: PageProps) {
     const updated = [newItem, ...patients]
     savePatients(updated)
 
-    fetch('/api/patients/', {
+    fetch(`${BACKEND_BASE_URL}/patients/`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
