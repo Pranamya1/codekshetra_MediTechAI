@@ -26,7 +26,6 @@ load_dotenv()
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup / shutdown lifecycle hook."""
     print("🏥 MediCare AI backend starting up…")
-    # TODO: initialise Supabase admin client, Gemini SDK, etc.
     yield
     print("🏥 MediCare AI backend shutting down…")
 
@@ -50,12 +49,14 @@ app = FastAPI(
 ALLOWED_ORIGINS: list[str] = [
     "http://localhost:5173",   # Vite dev server
     "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
     os.getenv("FRONTEND_URL", ""),
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o for o in ALLOWED_ORIGINS if o],
+    allow_origins=[o for o in ALLOWED_ORIGINS if o] or ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

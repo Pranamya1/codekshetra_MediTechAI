@@ -123,39 +123,58 @@ export function useAuth(): UseAuthReturn {
 
   // ── Sign in ───────────────────────────────────────────────────────────────
   const signIn = useCallback(async (email: string, password: string): Promise<AuthError | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return error
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      return error
+    } catch {
+      // Supabase URL not configured — return synthetic error so AuthPage can redirect to demo
+      return { message: 'Failed to fetch: Supabase not configured', name: 'NetworkError', status: 0 } as AuthError
+    }
   }, [])
 
-  // ── Sign up ───────────────────────────────────────────────────────────────
+  // ── Sign up ────────────────────────────────────────────────────────────────
   const signUp = useCallback(async (
     email: string,
     password: string,
     fullName: string,
     role: UserRole,
   ): Promise<AuthError | null> => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName, role },   // stored in auth.users.raw_user_meta_data
-      },
-    })
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName, role },
+        },
+      })
 
-    if (error || !data.user) return error
+      if (error || !data.user) return error
 
-    // Upsert into public.profiles table
-    // Cast payload to any to bypass scaffolded DB Insert type until Member 3 generates proper types
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await supabase.from('profiles').upsert({
-      id:         data.user.id,
-      full_name:  fullName,
-      role:       role as string,
-      avatar_url: null,
-    } as any)
+      // Upsert profile row regardless of email confirmation status
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await supabase.from('profiles').upsert({
+        id:         data.user.id,
+        full_name:  fullName,
+        role:       role as string,
+        avatar_url: null,
+      } as any)
 
-    return null
+      // If session is null → Supabase requires email confirmation
+      // Return a special marker so AuthPage can show the right screen
+      if (!data.session) {
+        return {
+          message: 'EMAIL_CONFIRMATION_REQUIRED',
+          name: 'EmailConfirmation',
+          status: 0,
+        } as AuthError
+      }
+
+      return null
+    } catch {
+      return { message: 'Failed to fetch: Supabase not configured', name: 'NetworkError', status: 0 } as AuthError
+    }
   }, [])
+
 
   // ── Sign out ──────────────────────────────────────────────────────────────
   const signOut = useCallback(async () => {

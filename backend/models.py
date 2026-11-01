@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any
 
 from pydantic import BaseModel, Field
 
@@ -123,6 +123,63 @@ class Vitals(VitalsBase, BaseRecord):
     pass
 
 
+# ─── Wearable Telemetry & AI Risk Models ──────────────────────────────────────
+
+class RiskLevel(str, Enum):
+    NORMAL   = "NORMAL"
+    INFO     = "INFO"
+    WARNING  = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class ClinicalAssessment(BaseModel):
+    risk_level: RiskLevel = Field(
+        ...,
+        description="Assessed risk classification: NORMAL, INFO, WARNING, or CRITICAL"
+    )
+    assessment_summary: str = Field(
+        ...,
+        description="A concise 2-sentence clinical assessment of the telemetry reading."
+    )
+    actionable_steps: list[str] = Field(
+        default_factory=list,
+        description="List of immediate, actionable clinical next steps."
+    )
+    triage_code: str = Field(
+        default="GREEN",
+        description="Emergency triage color code: GREEN, YELLOW, ORANGE, or RED."
+    )
+
+
+class WearableTelemetryPacket(VitalsCreate):
+    device_id: Optional[str] = Field(
+        None,
+        description="Hardware identifier or Bluetooth MAC address of wearable"
+    )
+    device_name: Optional[str] = Field(
+        None,
+        description="Wearable model name (e.g. Apple Watch, Garmin, Polar H10)"
+    )
+    battery_level: Optional[float] = Field(
+        None,
+        description="Battery percentage (0-100)"
+    )
+    transmission_channel: str = Field(
+        default="bluetooth_web",
+        description="Ingestion vector: 'bluetooth_web', 'bluetooth_ble_gatt', or 'mobile_app'"
+    )
+
+
+class VitalsStreamResponse(BaseModel):
+    success: bool
+    status: str
+    vitals_recorded: Vitals
+    clinical_assessment: ClinicalAssessment
+    alert_triggered: bool
+    alert: Optional[MedicalAlert] = None
+    db_sync: dict[str, Any] = Field(default_factory=dict)
+
+
 # ─── Medication ───────────────────────────────────────────────────────────────
 
 class MedicationBase(BaseModel):
@@ -195,9 +252,10 @@ class ChatMessage(BaseModel):
 
 
 class AIChatRequest(BaseModel):
-    patient_id: uuid.UUID
+    patient_id: Optional[uuid.UUID] = None
     messages:   list[ChatMessage]
-    model:      str = "gemini-2.0-flash"
+    model:      str = "gemini-flash-lite-latest"
+    system_instruction: Optional[str] = None
 
 
 class AIChatResponse(BaseModel):

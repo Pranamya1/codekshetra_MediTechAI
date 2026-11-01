@@ -26,8 +26,9 @@ import type { UseAuthReturn } from '../hooks/useAuth'
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AuthPageProps {
-  onSignIn:  UseAuthReturn['signIn']
-  onSignUp:  UseAuthReturn['signUp']
+  onSignIn:    UseAuthReturn['signIn']
+  onSignUp:    UseAuthReturn['signUp']
+  onDemoMode:  (role: UserRole) => void
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -253,7 +254,10 @@ function ErrorBanner({ message }: { message: string }) {
 
 // ─── Sign In Form ─────────────────────────────────────────────────────────────
 
-function SignInForm({ onSignIn }: { onSignIn: UseAuthReturn['signIn'] }) {
+function SignInForm({ onSignIn, onDemoMode }: {
+  onSignIn:   UseAuthReturn['signIn']
+  onDemoMode: (role: UserRole) => void
+}) {
   const uid = useId()
   const [form, setForm] = useState<SigninForm>({ email: '', password: '' })
   const [error,   setError]   = useState<string | null>(null)
@@ -266,11 +270,22 @@ function SignInForm({ onSignIn }: { onSignIn: UseAuthReturn['signIn'] }) {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const err = await onSignIn(form.email.trim(), form.password)
-    if (err) {
-      setError(err.message ?? 'Sign in failed. Please try again.')
+    try {
+      const err = await onSignIn(form.email.trim(), form.password)
+      if (err) {
+        // If Supabase isn't configured yet, auto-enter demo mode
+        if (err.message?.toLowerCase().includes('fetch') || err.message?.toLowerCase().includes('network')) {
+          onDemoMode(UserRole.Doctor) // default demo role for sign-in
+          return
+        }
+        setError(err.message ?? 'Sign in failed. Please try again.')
+      }
+    } catch {
+      // Network error — Supabase not configured, use demo
+      onDemoMode(UserRole.Doctor)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -455,11 +470,12 @@ function SignUpStep2({
 
 // ─── Main AuthPage ────────────────────────────────────────────────────────────
 
-export function AuthPage({ onSignIn, onSignUp }: AuthPageProps) {
+export function AuthPage({ onSignIn, onSignUp, onDemoMode }: AuthPageProps) {
   const [tab,         setTab]       = useState<AuthTab>('signin')
   const [signupStep,  setSignupStep] = useState<SignupStep>(1)
   const [error,       setError]     = useState<string | null>(null)
   const [loading,     setLoading]   = useState(false)
+  const [emailSent,   setEmailSent] = useState<string | null>(null)  // email address if confirmation pending
 
   const [signupForm, setSignupForm] = useState<SignupForm>({
     fullName: '', email: '', password: '', confirm: '', role: null,
@@ -489,14 +505,31 @@ export function AuthPage({ onSignIn, onSignUp }: AuthPageProps) {
     setError(null)
     if (!signupForm.role) return setError('Please select your role to continue.')
     setLoading(true)
-    const err = await onSignUp(
-      signupForm.email.trim(),
-      signupForm.password,
-      signupForm.fullName.trim(),
-      signupForm.role,
-    )
-    if (err) setError(err.message ?? 'Sign up failed. Please try again.')
-    setLoading(false)
+    try {
+      const err = await onSignUp(
+        signupForm.email.trim(),
+        signupForm.password,
+        signupForm.fullName.trim(),
+        signupForm.role,
+      )
+      if (err) {
+        // Email confirmation required → show confirmation screen
+        if (err.message === 'EMAIL_CONFIRMATION_REQUIRED') {
+          setEmailSent(signupForm.email.trim())
+          return
+        }
+        // Supabase not configured → auto demo
+        if (err.message?.toLowerCase().includes('fetch') || err.message?.toLowerCase().includes('network') || err.message?.toLowerCase().includes('url')) {
+          onDemoMode(signupForm.role)
+          return
+        }
+        setError(err.message ?? 'Sign up failed. Please try again.')
+      }
+    } catch {
+      if (signupForm.role) onDemoMode(signupForm.role)
+    } finally {
+      setLoading(false)
+    }
   }
 
   // ── Step indicator ────────────────────────────────────────────────────────
@@ -504,17 +537,54 @@ export function AuthPage({ onSignIn, onSignUp }: AuthPageProps) {
     ? (signupStep === 1 ? 'Step 1 of 2 · Your details' : 'Step 2 of 2 · Choose your role')
     : null
 
-  return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-50">
+  // ── Email confirmation screen ─────────────────────────────────────────────
+  if (emailSent) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center
+                      bg-gradient-to-br from-brand-950 via-[#0d3575] to-brand-700">
+        <div className="mx-4 w-full max-w-md rounded-3xl bg-white/10 backdrop-blur
+                        border border-white/20 shadow-glass p-10 text-center animate-fade-in">
+          {/* Envelope icon */}
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center
+                          rounded-2xl bg-brand-500/20 border border-brand-400/30">
+            <Mail className="w-10 h-10 text-brand-300" strokeWidth={1.5} />
+          </div>
+          <h2 className="text-2xl font-extrabold text-white mb-2">Check your inbox!</h2>
+          <p className="text-white/65 text-sm leading-relaxed mb-2">
+            We sent a confirmation link to:
+          </p>
+          <p className="text-brand-300 font-semibold text-base mb-6">{emailSent}</p>
+          <p className="text-white/50 text-xs mb-8">
+            Click the link in the email to activate your account,
+            then come back here and sign in.
+          </p>
+          <button
+            id="goto-signin-btn"
+            type="button"
+            onClick={() => { setEmailSent(null); setTab('signin'); setSignupStep(1) }}
+            className="btn-primary w-full justify-center py-3"
+          >
+            Go to Sign In <ArrowRight className="w-4 h-4" />
+          </button>
+          <p className="mt-4 text-xs text-white/30">
+            Didn't receive it? Check your spam folder or wait a minute.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
-      {/* ── Left brand panel ── */}
-      <div className="w-[45%]">
+  return (
+    <div className="flex min-h-[100dvh] w-full overflow-y-auto lg:overflow-hidden bg-slate-50">
+
+      {/* ── Left brand panel (visible on desktop) ── */}
+      <div className="hidden lg:block lg:w-[45%] shrink-0">
         <BrandPanel />
       </div>
 
       {/* ── Right form panel ── */}
       <div className="flex flex-1 flex-col items-center justify-center
-                      overflow-y-auto px-8 py-12 bg-gradient-to-br from-white to-slate-50">
+                      overflow-y-auto px-4 sm:px-8 py-8 sm:py-12 bg-gradient-to-br from-white to-slate-50">
 
         {/* Mobile logo (only visible < lg) */}
         <div className="flex lg:hidden items-center gap-2 mb-8">
@@ -577,7 +647,7 @@ export function AuthPage({ onSignIn, onSignUp }: AuthPageProps) {
           {/* ── Form content ── */}
           <div className="animate-fade-in" key={`${tab}-${signupStep}`}>
             {tab === 'signin' && (
-              <SignInForm onSignIn={onSignIn} />
+              <SignInForm onSignIn={onSignIn} onDemoMode={onDemoMode} />
             )}
 
             {tab === 'signup' && signupStep === 1 && (
@@ -610,10 +680,47 @@ export function AuthPage({ onSignIn, onSignUp }: AuthPageProps) {
               {tab === 'signin' ? 'Create account' : 'Sign in'}
             </button>
           </p>
+
+          {/* ── Demo Mode divider ── */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-white px-3 text-xs text-slate-400 font-medium uppercase tracking-wider">
+                or preview without account
+              </span>
+            </div>
+          </div>
+
+          {/* Demo role pills */}
+          <div className="space-y-2">
+            <p className="text-center text-xs text-slate-400 mb-3">Try Demo — no sign-up needed</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { role: UserRole.Patient,   label: 'Patient',   icon: <Heart className="w-4 h-4" />,       color: 'hover:bg-brand-50  hover:border-brand-300  hover:text-brand-700'  },
+                { role: UserRole.Caregiver, label: 'Caregiver', icon: <Users className="w-4 h-4" />,       color: 'hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700' },
+                { role: UserRole.Doctor,    label: 'Doctor',    icon: <Stethoscope className="w-4 h-4" />, color: 'hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700' },
+              ].map(({ role, label, icon, color }) => (
+                <button
+                  key={role}
+                  id={`demo-btn-${role}`}
+                  type="button"
+                  onClick={() => onDemoMode(role)}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200
+                              bg-white px-2 py-3 text-slate-500 text-xs font-semibold
+                              transition-all duration-150 ${color}`}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
-        <p className="mt-10 text-xs text-slate-300 text-center">
+        <p className="mt-8 text-xs text-slate-300 text-center">
           © {new Date().getFullYear()} MediCare AI · For demo only · Not medical advice
         </p>
       </div>
